@@ -15,15 +15,47 @@ function ReviewPage() {
   const [campaign, setCampaign] = useState<any>(null);
   const [variants, setVariants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
 
   const load = async () => {
     const [c, v] = await Promise.all([
-      supabase.from("campaigns").select("*, products(name), brand_presets(name)").eq("id", id).single(),
+      supabase.from("campaigns").select("*, products(*), brand_presets(*)").eq("id", id).single(),
       supabase.from("creative_variants").select("*").eq("campaign_id", id).order("created_at"),
     ]);
     setCampaign(c.data); setVariants(v.data ?? []); setLoading(false);
   };
   useEffect(() => { load(); }, [id]);
+
+  const regenerate = async () => {
+    if (!campaign?.products || !campaign?.brand_presets) return toast.error("Missing campaign details");
+    setRegenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-creatives", {
+        body: {
+          campaign_id: campaign.id,
+          product_image_url: campaign.products.image_url,
+          product_name: campaign.products.name,
+          primary_color: campaign.brand_presets.primary_color,
+          secondary_color: campaign.brand_presets.secondary_color,
+          font_name: campaign.brand_presets.font_name,
+          creative_style: campaign.creative_style,
+          campaign_goal: campaign.goal,
+        },
+      });
+      if (error) throw new Error(error.message);
+      const total = data?.total ?? 0;
+      if (!data?.success || total === 0) {
+        const detail = (data?.errors ?? []).join(" | ") || data?.error || "No variants generated";
+        throw new Error(detail);
+      }
+      toast.success(`Generated ${total} variant${total === 1 ? "" : "s"}`);
+      await load();
+    } catch (e: any) {
+      toast.error(e.message ?? "Generation failed");
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   const updateVariant = (vid: string, patch: Record<string, any>) =>
     setVariants((vs) => vs.map((v) => (v.id === vid ? { ...v, ...patch } : v)));
