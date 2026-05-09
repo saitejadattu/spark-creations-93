@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/StatusBadge";
 import { toast } from "sonner";
-import { Check, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, X, ChevronDown, ChevronUp, Loader2, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/campaigns/$id/review")({
   head: () => ({ meta: [{ title: "Review Creatives — CreativeAI" }] }),
