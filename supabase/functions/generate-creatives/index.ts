@@ -15,12 +15,12 @@ serve(async (req) => {
     const body = await req.json()
     const { campaign_id, product_image_url, product_name, primary_color, secondary_color, font_name, creative_style, campaign_goal } = body
 
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-    if (!GEMINI_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      console.error("Missing env", { GEMINI_API_KEY: !!GEMINI_API_KEY, SUPABASE_URL: !!SUPABASE_URL, SERVICE_ROLE_KEY: !!SUPABASE_SERVICE_ROLE_KEY })
+    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("Missing env", { LOVABLE_API_KEY: !!LOVABLE_API_KEY, SUPABASE_URL: !!SUPABASE_URL, SERVICE_ROLE_KEY: !!SUPABASE_SERVICE_ROLE_KEY })
       return new Response(
         JSON.stringify({ success: false, error: "Server configuration error: missing env vars" }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -42,33 +42,36 @@ serve(async (req) => {
       try {
         console.log(`Generating variant ${i + 1}...`)
 
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GEMINI_API_KEY}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompts[i] }] }],
-            })
-          }
-        )
+        const aiRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash-image-preview',
+            messages: [{ role: 'user', content: prompts[i] }],
+            modalities: ['image', 'text'],
+          }),
+        })
 
-        const geminiData = await geminiRes.json()
-        console.log(`Variant ${i + 1} Gemini response:`, JSON.stringify(geminiData).substring(0, 300))
-
-        const parts = geminiData?.candidates?.[0]?.content?.parts || []
-        const imagePart = parts.find((p: any) => p.inlineData?.data || p.inline_data?.data)
-        const inline = imagePart?.inlineData ?? imagePart?.inline_data
-
-        if (!inline?.data) {
-          const msg = geminiData?.error?.message || `No image returned for variant ${i + 1}`
-          console.error(`Variant ${i + 1}: no image`, msg)
+        const aiData = await aiRes.json()
+        if (!aiRes.ok) {
+          const msg = aiData?.error?.message || `AI gateway ${aiRes.status}`
+          console.error(`Variant ${i + 1}:`, msg)
           errors.push(`Variant ${i + 1}: ${msg}`)
           continue
         }
 
-        const base64Data = inline.data
-        const mimeType = inline.mimeType || inline.mime_type || 'image/png'
+        const imageUrl: string | undefined = aiData?.choices?.[0]?.message?.images?.[0]?.image_url?.url
+        if (!imageUrl || !imageUrl.startsWith('data:')) {
+          console.error(`Variant ${i + 1}: no image`, JSON.stringify(aiData).substring(0, 300))
+          errors.push(`Variant ${i + 1}: no image returned`)
+          continue
+        }
+
+        const [meta, base64Data] = imageUrl.split(',')
+        const mimeType = meta.match(/data:([^;]+)/)?.[1] || 'image/png'
         const byteArray = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0))
 
         const filename = `${campaign_id}-v${i + 1}-${Date.now()}.png`
