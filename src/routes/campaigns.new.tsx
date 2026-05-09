@@ -59,7 +59,7 @@ function NewCampaign() {
         .select().single();
       if (error || !campaign) throw error;
 
-      const { error: fnErr } = await supabase.functions.invoke("generate-creatives", {
+      const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-creatives", {
         body: {
           campaign_id: campaign.id,
           product_image_url: product.image_url,
@@ -71,7 +71,13 @@ function NewCampaign() {
           campaign_goal: goal,
         },
       });
-      if (fnErr) throw fnErr;
+      if (fnErr) throw new Error(fnErr.message ?? "Edge function failed");
+      const total = fnData?.total ?? 0;
+      if (!fnData?.success || total === 0) {
+        const detail = (fnData?.errors ?? []).join(" | ") || fnData?.error || "No variants were generated";
+        throw new Error(detail);
+      }
+      toast.success(`Generated ${total} variant${total === 1 ? "" : "s"}`);
       nav({ to: "/campaigns/$id/review", params: { id: campaign.id } });
     } catch (e: any) {
       toast.error(e.message ?? "Generation failed");
