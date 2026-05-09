@@ -92,7 +92,17 @@ function ReviewPage() {
       )}
 
       {variants.length === 0 ? (
-        <div className="bg-card rounded-lg p-12 text-center text-muted-foreground">No variants generated yet.</div>
+        <div className="bg-card rounded-lg p-12 text-center">
+          <p className="text-muted-foreground mb-4">No variants generated yet.</p>
+          <button
+            onClick={regenerate}
+            disabled={regenerating}
+            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-md font-medium disabled:opacity-50"
+          >
+            {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {regenerating ? "Generating…" : "Regenerate Creatives"}
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {variants.map((v, i) => (
