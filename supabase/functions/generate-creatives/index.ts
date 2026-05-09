@@ -69,13 +69,12 @@ Deno.serve(async (req) => {
         if (productImagePart) parts.push(productImagePart);
 
         const geminiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${GEMINI_API_KEY}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GEMINI_API_KEY}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               contents: [{ parts }],
-              generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
             }),
           },
         );
