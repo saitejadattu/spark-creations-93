@@ -11,6 +11,13 @@ const STYLES = [
   { id: "Lifestyle", icon: Sun, desc: "Product in real-world context or scene" },
   { id: "Festive", icon: Star, desc: "Celebratory, seasonal, warm and inviting" },
 ];
+const PLATFORMS = [
+  { value: "instagram_feed", label: "Instagram Feed (1:1)" },
+  { value: "instagram_story", label: "Instagram Story (9:16)" },
+  { value: "facebook_ad", label: "Facebook Ad (16:9)" },
+  { value: "amazon", label: "Amazon Listing (1:1)" },
+  { value: "flipkart", label: "Flipkart Banner (1:1)" },
+];
 
 export const Route = createFileRoute("/campaigns/new")({
   head: () => ({ meta: [{ title: "New Campaign — CreativeAI" }] }),
@@ -25,6 +32,10 @@ function NewCampaign() {
   const [productId, setProductId] = useState("");
   const [presetId, setPresetId] = useState("");
   const [style, setStyle] = useState("");
+  const [headline, setHeadline] = useState("");
+  const [ctaText, setCtaText] = useState("");
+  const [platform, setPlatform] = useState("instagram_feed");
+  const [customInstructions, setCustomInstructions] = useState("");
   const [products, setProducts] = useState<any[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
@@ -44,7 +55,8 @@ function NewCampaign() {
 
   const next = () => {
     if (step === 1) {
-      if (!name || !goal || !productId || !presetId) return toast.error("Fill all fields");
+      if (!name || !goal || !productId || !presetId || !headline || !ctaText || !platform)
+        return toast.error("Fill all required fields");
     }
     if (step === 2 && !style) return toast.error("Choose a style");
     setStep(step + 1);
@@ -55,7 +67,11 @@ function NewCampaign() {
     try {
       const { data: campaign, error } = await supabase
         .from("campaigns")
-        .insert({ name, goal, product_id: productId, brand_preset_id: presetId, creative_style: style, status: "generating" })
+        .insert({
+          name, goal, product_id: productId, brand_preset_id: presetId,
+          creative_style: style, status: "generating",
+          headline, cta_text: ctaText, platform, custom_instructions: customInstructions || null,
+        })
         .select().single();
       if (error || !campaign) throw error;
 
@@ -69,6 +85,10 @@ function NewCampaign() {
           font_name: preset.font_name,
           creative_style: style,
           campaign_goal: goal,
+          headline,
+          cta_text: ctaText,
+          platform,
+          custom_instructions: customInstructions || "",
         },
       });
       if (fnErr) throw new Error(fnErr.message ?? "Edge function failed");
@@ -134,6 +154,20 @@ function NewCampaign() {
                 </select>
               )}
             </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Ad Headline *</label>
+              <input value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="e.g. Glow Like Never Before, Shop The Best, Limited Time Offer" className="w-full px-3 py-2 rounded-md border border-input" />
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">CTA Button Text *</label>
+              <input value={ctaText} onChange={(e) => setCtaText(e.target.value)} placeholder="e.g. Shop Now, Get 50% Off, Try Free, Buy Now" className="w-full px-3 py-2 rounded-md border border-input" />
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Target Platform *</label>
+              <select value={platform} onChange={(e) => setPlatform(e.target.value)} className="w-full px-3 py-2 rounded-md border border-input bg-background">
+                {PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </div>
             <div className="flex justify-end pt-2">
               <button onClick={next} className="bg-primary text-primary-foreground px-5 py-2 rounded-md font-medium">Next →</button>
             </div>
@@ -154,6 +188,16 @@ function NewCampaign() {
                   </button>
                 );
               })}
+            </div>
+            <div className="mt-4">
+              <label className="text-sm font-medium block mb-1">Custom Instructions (Optional)</label>
+              <textarea
+                value={customInstructions}
+                onChange={(e) => setCustomInstructions(e.target.value)}
+                placeholder="e.g. dark background, gold accents, Diwali theme, luxury feel, minimalist"
+                className="w-full px-3 py-2 rounded-md border border-input"
+                rows={3}
+              />
             </div>
             <div className="flex justify-between mt-6">
               <button onClick={() => setStep(1)} className="px-5 py-2 rounded-md border border-input">← Back</button>
@@ -177,6 +221,10 @@ function NewCampaign() {
                 </>}
               </div>
               <div><span className="text-muted-foreground">Style:</span> {style}</div>
+              <div><span className="text-muted-foreground">Headline:</span> {headline}</div>
+              <div><span className="text-muted-foreground">CTA:</span> {ctaText}</div>
+              <div><span className="text-muted-foreground">Platform:</span> {PLATFORMS.find((p) => p.value === platform)?.label}</div>
+              {customInstructions && <div><span className="text-muted-foreground">Custom:</span> {customInstructions}</div>}
             </div>
             <div className="flex justify-between mt-6">
               <button onClick={() => setStep(2)} className="px-5 py-2 rounded-md border border-input">← Back</button>
