@@ -60,8 +60,16 @@ function ExportPage() {
   );
 }
 
-function ExportRow({ variant }: any) {
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
+function ExportRow({ variant, platform }: any) {
+  const platformDefault: Record<string, string> = {
+    instagram_feed: "1080x1080",
+    instagram_story: "1080x1920",
+    facebook_ad: "1200x628",
+    amazon: "1080x1080",
+    flipkart: "1200x400",
+  };
+  const initial = platform && platformDefault[platform] ? { [platformDefault[platform]]: true } : {};
+  const [selected, setSelected] = useState<Record<string, boolean>>(initial);
   const [busy, setBusy] = useState(false);
   const [exported, setExported] = useState<any[]>(variant.export_history ?? []);
 
