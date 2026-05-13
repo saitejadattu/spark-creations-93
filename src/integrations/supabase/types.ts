@@ -52,9 +52,14 @@ export type Database = {
           brand_preset_id: string | null
           created_at: string
           creative_style: string
+          cta_text: string | null
+          custom_instructions: string | null
+          cutout_url: string | null
           goal: string
+          headline: string | null
           id: string
           name: string
+          platform: string | null
           product_id: string | null
           status: string
         }
@@ -62,9 +67,14 @@ export type Database = {
           brand_preset_id?: string | null
           created_at?: string
           creative_style: string
+          cta_text?: string | null
+          custom_instructions?: string | null
+          cutout_url?: string | null
           goal: string
+          headline?: string | null
           id?: string
           name: string
+          platform?: string | null
           product_id?: string | null
           status?: string
         }
@@ -72,9 +82,14 @@ export type Database = {
           brand_preset_id?: string | null
           created_at?: string
           creative_style?: string
+          cta_text?: string | null
+          custom_instructions?: string | null
+          cutout_url?: string | null
           goal?: string
+          headline?: string | null
           id?: string
           name?: string
+          platform?: string | null
           product_id?: string | null
           status?: string
         }

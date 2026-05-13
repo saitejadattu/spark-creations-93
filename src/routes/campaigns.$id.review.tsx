@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/StatusBadge";
 import { toast } from "sonner";
-import { Check, X, ChevronDown, ChevronUp, Loader2, Sparkles } from "lucide-react";
+import { Check, X, ChevronDown, ChevronUp, Loader2, Sparkles, RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/campaigns/$id/review")({
   head: () => ({ meta: [{ title: "Review Creatives — CreativeAI" }] }),
@@ -26,22 +26,27 @@ function ReviewPage() {
   };
   useEffect(() => { load(); }, [id]);
 
+  const buildPayload = (variantIndex?: number) => ({
+    campaign_id: campaign.id,
+    product_image_url: campaign.products.image_url,
+    product_name: campaign.products.name,
+    primary_color: campaign.brand_presets.primary_color,
+    secondary_color: campaign.brand_presets.secondary_color,
+    font_name: campaign.brand_presets.font_name,
+    creative_style: campaign.creative_style,
+    campaign_goal: campaign.goal,
+    headline: campaign.headline ?? "",
+    cta_text: campaign.cta_text ?? "",
+    platform: campaign.platform ?? "instagram_feed",
+    custom_instructions: campaign.custom_instructions ?? "",
+    ...(variantIndex !== undefined ? { variant_index: variantIndex } : {}),
+  });
+
   const regenerate = async () => {
     if (!campaign?.products || !campaign?.brand_presets) return toast.error("Missing campaign details");
     setRegenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-creatives", {
-        body: {
-          campaign_id: campaign.id,
-          product_image_url: campaign.products.image_url,
-          product_name: campaign.products.name,
-          primary_color: campaign.brand_presets.primary_color,
-          secondary_color: campaign.brand_presets.secondary_color,
-          font_name: campaign.brand_presets.font_name,
-          creative_style: campaign.creative_style,
-          campaign_goal: campaign.goal,
-        },
-      });
+      const { data, error } = await supabase.functions.invoke("generate-creatives", { body: buildPayload() });
       if (error) throw new Error(error.message);
       const total = data?.total ?? 0;
       if (!data?.success || total === 0) {
@@ -54,6 +59,23 @@ function ReviewPage() {
       toast.error(e.message ?? "Generation failed");
     } finally {
       setRegenerating(false);
+    }
+  };
+
+  const regenerateOne = async (index: number) => {
+    if (!campaign?.products || !campaign?.brand_presets) return toast.error("Missing campaign details");
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-creatives", { body: buildPayload(index) });
+      if (error) throw new Error(error.message);
+      if (!data?.success) {
+        const detail = (data?.errors ?? []).join(" | ") || data?.error || "Regeneration failed";
+        throw new Error(detail);
+      }
+      toast.success("Variant regenerated successfully");
+      await load();
+    } catch (e: any) {
+      toast.error(e.message ?? "Regeneration failed");
+      throw e;
     }
   };
 
@@ -75,11 +97,26 @@ function ReviewPage() {
         <h1 className="text-2xl font-semibold">{campaign.name}</h1>
         <StatusBadge status={campaign.status} />
       </div>
-      <div className="text-sm text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 mb-4">
-        <span>{campaign.products?.name}</span><span>·</span>
-        <span>{campaign.brand_presets?.name}</span><span>·</span>
-        <span>{campaign.creative_style}</span><span>·</span>
-        <span>{campaign.goal}</span>
+
+      {/* Original product comparison + info pills */}
+      <div className="flex flex-col md:flex-row gap-4 mb-6 mt-4">
+        {campaign.products?.image_url && (
+          <div className="w-[200px] shrink-0">
+            <div className="text-xs text-muted-foreground mb-1">Original Product</div>
+            <div className="bg-card rounded-lg shadow-sm overflow-hidden border">
+              <img src={campaign.products.image_url} alt="" className="w-full h-[200px] object-contain bg-muted" />
+            </div>
+          </div>
+        )}
+        <div className="flex-1 flex flex-wrap gap-2 content-start">
+          <Pill label="Product" value={campaign.products?.name} />
+          <Pill label="Brand" value={campaign.brand_presets?.name} />
+          <Pill label="Style" value={campaign.creative_style} />
+          <Pill label="Goal" value={campaign.goal} />
+          {campaign.headline && <Pill label="Headline" value={campaign.headline} />}
+          {campaign.cta_text && <Pill label="CTA" value={campaign.cta_text} />}
+          {campaign.platform && <Pill label="Platform" value={campaign.platform} />}
+        </div>
       </div>
 
       <div className="text-sm font-medium mb-4">{approved} of {variants.length} approved · {rejected} rejected · {pending} pending</div>
@@ -106,7 +143,14 @@ function ReviewPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {variants.map((v, i) => (
-            <VariantCard key={v.id} variant={v} index={i} onUpdate={(patch: Record<string, any>) => updateVariant(v.id, patch)} campaignId={id} />
+            <VariantCard
+              key={v.id}
+              variant={v}
+              index={i}
+              onUpdate={(patch: Record<string, any>) => updateVariant(v.id, patch)}
+              campaignId={id}
+              onRegenerate={() => regenerateOne(i)}
+            />
           ))}
         </div>
       )}
@@ -114,11 +158,22 @@ function ReviewPage() {
   );
 }
 
-function VariantCard({ variant, index, onUpdate, campaignId }: any) {
+function Pill({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="inline-flex items-center gap-1.5 text-xs bg-muted rounded-full px-3 py-1.5">
+      <span className="text-muted-foreground">{label}:</span>
+      <span className="font-medium">{value}</span>
+    </div>
+  );
+}
+
+function VariantCard({ variant, index, onUpdate, campaignId, onRegenerate }: any) {
   const [showPrompt, setShowPrompt] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [regenBusy, setRegenBusy] = useState(false);
 
   const approve = async () => {
     setBusy(true);
@@ -139,15 +194,39 @@ function VariantCard({ variant, index, onUpdate, campaignId }: any) {
     setRejecting(false);
   };
 
+  const handleRegenerate = async () => {
+    setRegenBusy(true);
+    try { await onRegenerate(); } catch {} finally { setRegenBusy(false); }
+  };
+
+  const canRegen = variant.status === "pending" || variant.status === "rejected";
+
   return (
-    <div className="bg-card rounded-lg shadow-sm overflow-hidden">
-      <div className="bg-muted flex items-center justify-center" style={{ maxHeight: 300 }}>
+    <div className="bg-card rounded-lg shadow-sm overflow-hidden relative">
+      <div className="bg-muted flex items-center justify-center relative" style={{ maxHeight: 300 }}>
         <img src={variant.image_url} alt="" className="max-h-[300px] w-full object-contain" />
+        {regenBusy && (
+          <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        )}
       </div>
       <div className="p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-muted-foreground">Variant {index + 1}</span>
-          <StatusBadge status={variant.status} />
+          <div className="flex items-center gap-2">
+            {canRegen && (
+              <button
+                onClick={handleRegenerate}
+                disabled={regenBusy}
+                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-input hover:bg-muted disabled:opacity-50"
+                title="Regenerate this variant"
+              >
+                <RefreshCw className={`h-3 w-3 ${regenBusy ? "animate-spin" : ""}`} /> Regenerate
+              </button>
+            )}
+            <StatusBadge status={variant.status} />
+          </div>
         </div>
         <button onClick={() => setShowPrompt(!showPrompt)} className="text-xs text-muted-foreground inline-flex items-center gap-1">
           View prompt {showPrompt ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
