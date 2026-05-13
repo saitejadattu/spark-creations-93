@@ -47,7 +47,7 @@ function ExportPage() {
         </div>
       ) : (
         <div className="space-y-5">
-          {variants.map((v) => <ExportRow key={v.id} variant={v} />)}
+          {variants.map((v) => <ExportRow key={v.id} variant={v} platform={campaign?.platform} />)}
         </div>
       )}
 
