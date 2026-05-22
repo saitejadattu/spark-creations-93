@@ -83,6 +83,7 @@ function NewCampaign() {
           primary_color: preset.primary_color,
           secondary_color: preset.secondary_color,
           font_name: preset.font_name,
+          logo_url: preset.logo_url ?? null,
           creative_style: style,
           campaign_goal: goal,
           headline,
